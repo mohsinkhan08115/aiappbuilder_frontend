@@ -1,0 +1,26 @@
+name: aiappbuilder
+description: "AI Flutter App Builder - Frontend"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  dio: ^5.4.1
+  path_provider: ^2.1.2
+  url_launcher: ^6.2.6
+  file_picker: ^8.0.3
+  archive: ^3.6.1
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
