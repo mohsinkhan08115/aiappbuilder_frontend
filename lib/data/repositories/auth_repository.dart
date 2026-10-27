@@ -5,7 +5,7 @@ abstract class AuthRepository {
   Future<void> register(String email, String password);
   Future<void> login(String email, String password);
   void logout();
-  Future<void> saveGithubToken(String token);
+  Future<Map<String, dynamic>> saveGithubToken(String token);
 }
 
 class AuthRepositoryImpl implements AuthRepository {
@@ -28,6 +28,6 @@ class AuthRepositoryImpl implements AuthRepository {
   void logout() => _apiService.logout();
 
   @override
-  Future<void> saveGithubToken(String token) =>
+  Future<Map<String, dynamic>> saveGithubToken(String token) =>
       _apiService.saveGithubToken(token);
 }

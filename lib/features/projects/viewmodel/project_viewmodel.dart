@@ -6,12 +6,17 @@ import '../../../data/models/log_entry.dart';
 import '../../../data/models/build_job.dart';
 import '../../../data/models/project_file.dart';
 import '../../../data/models/proposed_file_change.dart';
+import '../../../data/models/github_repo.dart';
 import '../../../data/repositories/project_repository.dart';
 import '../../../data/services/api_service.dart';
+import '../../../core/errors/app_error_handler.dart';
+
+import '../../../data/services/preferences_service.dart';
 
 class ProjectViewModel extends ChangeNotifier {
   final ProjectRepository _projectRepository;
   final ApiService _apiService;
+  final PreferencesService? _preferencesService;
 
   List<Project> _projects = [];
   List<BuildJob> _buildJobs = [];
@@ -19,6 +24,7 @@ class ProjectViewModel extends ChangeNotifier {
   Project? _selectedProject;
   bool _isLoading = false;
   String? _error;
+  Map<String, dynamic>? _githubDiagnostics;
 
   // Workspace File Explorer & Editing state
   List<ProjectFile> _projectFiles = [];
@@ -40,7 +46,7 @@ class ProjectViewModel extends ChangeNotifier {
 
   Timer? _pollingTimer;
 
-  ProjectViewModel(this._projectRepository, this._apiService);
+  ProjectViewModel(this._projectRepository, this._apiService, [this._preferencesService]);
 
   List<Project> get projects => _projects;
   List<BuildJob> get buildJobs => _buildJobs;
@@ -51,6 +57,7 @@ class ProjectViewModel extends ChangeNotifier {
   Project? get selectedProject => _selectedProject;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  Map<String, dynamic>? get githubDiagnostics => _githubDiagnostics;
 
   List<ProjectFile> get projectFiles => _projectFiles;
   ProjectFile? get selectedFile => _selectedFile;
@@ -84,7 +91,7 @@ class ProjectViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
     }
   }
@@ -110,7 +117,7 @@ class ProjectViewModel extends ChangeNotifier {
       return newProj;
     } catch (e) {
       _isLoading = false;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
       return null;
     }
@@ -133,7 +140,7 @@ class ProjectViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
     }
   }
@@ -156,6 +163,9 @@ class ProjectViewModel extends ChangeNotifier {
       await fetchFiles(projectId);
 
       final project = _selectedProject;
+      if (project != null) {
+        _preferencesService?.setSelectedProjectId(project.id);
+      }
       if (project != null &&
           (project.isActive ||
               _buildJobs.any(
@@ -167,8 +177,15 @@ class ProjectViewModel extends ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
+    }
+  }
+
+  Future<void> restoreSelectedProjectFromStorage() async {
+    final savedId = _preferencesService?.getSelectedProjectId();
+    if (savedId != null && savedId.isNotEmpty && _selectedProject == null) {
+      await selectProject(savedId);
     }
   }
 
@@ -198,7 +215,7 @@ class ProjectViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _isFileLoading = false;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
     }
   }
@@ -231,7 +248,7 @@ class ProjectViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _isSavingFile = false;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
     }
   }
@@ -273,7 +290,7 @@ class ProjectViewModel extends ChangeNotifier {
     } catch (e) {
       _isImportingZip = false;
       _importProgress = null;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
       rethrow;
     }
@@ -319,7 +336,7 @@ class ProjectViewModel extends ChangeNotifier {
     } catch (e) {
       _isImportingZip = false;
       _importProgress = null;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
       rethrow;
     }
@@ -358,7 +375,7 @@ class ProjectViewModel extends ChangeNotifier {
     } catch (e) {
       _isImportingZip = false;
       _importProgress = null;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
       rethrow;
     }
@@ -384,7 +401,7 @@ class ProjectViewModel extends ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       _isThinking = false;
       final projectRevert = _selectedProject;
       if (projectRevert != null && projectRevert.id == projectId) {
@@ -418,7 +435,7 @@ class ProjectViewModel extends ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       _isThinking = false;
       final projectRevert = _selectedProject;
       if (projectRevert != null && projectRevert.id == projectId) {
@@ -434,6 +451,8 @@ class ProjectViewModel extends ChangeNotifier {
     _proposedDependencies = [];
     notifyListeners();
   }
+
+  void clearAIProposal() => discardAIProposal();
 
   Future<void> fetchAIProposal(
     String projectId,
@@ -466,7 +485,7 @@ class ProjectViewModel extends ChangeNotifier {
       _isThinking = false;
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       _isThinking = false;
       notifyListeners();
     }
@@ -507,7 +526,7 @@ class ProjectViewModel extends ChangeNotifier {
       startLogPolling(projectId);
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       _isApplyingChanges = false;
       notifyListeners();
     }
@@ -533,7 +552,7 @@ class ProjectViewModel extends ChangeNotifier {
       _isAnalyzing = false;
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       _isAnalyzing = false;
       notifyListeners();
     }
@@ -573,12 +592,21 @@ class ProjectViewModel extends ChangeNotifier {
       startLogPolling(projectId);
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
     }
   }
 
-  Future<void> syncToGitHub(
+  Future<GitHubRepo?> fetchGithubRepo(String projectId) async {
+    try {
+      return await _projectRepository.getGithubRepo(projectId);
+    } catch (e) {
+      debugPrint("Error fetching GitHub repo status: $e");
+      return null;
+    }
+  }
+
+  Future<GitHubRepo> pushToGithub(
     String projectId,
     String repoName,
     bool isPrivate,
@@ -587,28 +615,45 @@ class ProjectViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _projectRepository.pushToGithub(projectId, repoName, isPrivate);
+      final repo = await _projectRepository.pushToGithub(projectId, repoName, isPrivate);
       startLogPolling(projectId);
       notifyListeners();
+      return repo;
     } catch (e) {
-      _error = e.toString();
+      final err = AppErrorHandler.parseError(e);
+      _error = err;
       notifyListeners();
+      rethrow;
     }
   }
 
-  Future<void> updateGitHubToken(String token) async {
+  Future<void> syncToGitHub(
+    String projectId,
+    String repoName,
+    bool isPrivate,
+  ) async {
+    try {
+      await pushToGithub(projectId, repoName, isPrivate);
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>?> updateGitHubToken(String token) async {
     _isLoading = true;
     _error = null;
+    _githubDiagnostics = null;
     notifyListeners();
 
     try {
-      await _apiService.saveGithubToken(token);
+      final res = await _apiService.saveGithubToken(token);
       _isLoading = false;
+      _githubDiagnostics = res;
       notifyListeners();
+      return res;
     } catch (e) {
       _isLoading = false;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
+      return null;
     }
   }
 
@@ -668,7 +713,7 @@ class ProjectViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _error = e.toString();
+      _error = AppErrorHandler.parseError(e);
       notifyListeners();
       rethrow;
     }

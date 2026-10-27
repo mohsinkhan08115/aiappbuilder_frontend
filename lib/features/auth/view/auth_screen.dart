@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodel/auth_viewmodel.dart';
 import '../../../app/routes/app_routes.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/components/brand_logo.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -15,6 +17,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLogin = true;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -42,7 +45,6 @@ class _AuthScreenState extends State<AuthScreen> {
         if (_isLogin) {
           Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
         } else {
-          // If register succeeded, show success message and switch to login
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Account created! Please sign in.')),
           );
@@ -65,113 +67,135 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final authVm = context.watch<AuthViewModel>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Premium App Title
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.auto_awesome,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 32,
-                          ),
-                          const SizedBox(width: 12),
-                          const Flexible(
-                            child: Text(
-                              'Antigravity Build',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _isLogin
-                            ? 'Welcome back. Build something awesome.'
-                            : 'Create an account to start building.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                      const SizedBox(height: 32),
-                      
-                      // Email
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Email Address',
-                          prefixIcon: Icon(Icons.email_outlined),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty || !value.contains('@')) {
-                            return 'Please enter a valid email address';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Password
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock_outlined),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().length < 6) {
-                            return 'Password must be at least 6 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      
-                      // Action button
-                      authVm.isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : ElevatedButton(
-                              onPressed: _submit,
-                              child: Text(_isLogin ? 'Sign In' : 'Sign Up'),
-                            ),
-                      const SizedBox(height: 16),
-                      
-                      // Toggle login/register mode
-                      TextButton(
-                        onPressed: () {
-                          authVm.clearError();
-                          setState(() {
-                            _isLogin = !_isLogin;
-                          });
-                        },
-                        child: Text(
-                          _isLogin
-                              ? 'New user? Create an account'
-                              : 'Already have an account? Sign in',
-                        ),
-                      ),
-                    ],
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Container(
+              padding: const EdgeInsets.all(32.0),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorderBright : AppColors.lightBorderBright,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
                   ),
+                ],
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Brand Logo
+                    Center(child: BrandLogo(markSize: 36, fontSize: 22, isLight: !isDark)),
+                    const SizedBox(height: 12),
+                    Text(
+                      _isLogin
+                          ? 'Welcome back. Build something awesome.'
+                          : 'Create an account to start building.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.darkMuted, fontSize: 12),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Email Field
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Email Address',
+                        prefixIcon: Icon(Icons.email_outlined, size: 18),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty || !value.contains('@')) {
+                          return 'Please enter a valid email address';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Password Field
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outlined, size: 18),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 20,
+                          ),
+                          tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().length < 6) {
+                          return 'Password must be at least 6 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Action Button
+                    authVm.isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : ElevatedButton(
+                            onPressed: _submit,
+                            child: Text(_isLogin ? 'Sign In' : 'Sign Up'),
+                          ),
+                    const SizedBox(height: 16),
+
+                    // Mode Toggle
+                    TextButton(
+                      onPressed: () {
+                        authVm.clearError();
+                        setState(() {
+                          _isLogin = !_isLogin;
+                        });
+                      },
+                      child: Text(
+                        _isLogin
+                            ? 'New user? Create an account'
+                            : 'Already have an account? Sign in',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+                    // Quick Prototype Bypass for direct workspace evaluation
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+                      },
+                      icon: const Icon(Icons.arrow_forward, size: 14),
+                      label: const Text(
+                        'Explore Workspace as Guest',
+                        style: TextStyle(color: AppColors.darkMuted, fontSize: 11),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

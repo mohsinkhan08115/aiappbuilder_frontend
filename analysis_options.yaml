@@ -8,3 +8,6 @@ linter:
 analyzer:
   exclude:
     - "workspaces/**"
+  errors:
+    deprecated_member_use: ignore
+    avoid_web_libraries_in_flutter: ignore

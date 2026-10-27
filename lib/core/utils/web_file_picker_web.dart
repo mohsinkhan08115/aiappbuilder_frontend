@@ -28,12 +28,15 @@ Future<List<SelectedFile>> pickDirectory() async {
           if (reader.result != null) {
             final buffer = reader.result as ByteBuffer;
             final bytes = Uint8List.view(buffer);
-            final relativePath = (file as dynamic).webkitRelativePath as String? ?? file.name;
-            selectedFiles.add(SelectedFile(
-              name: file.name,
-              relativePath: relativePath,
-              bytes: bytes,
-            ));
+            final relativePath =
+                (file as dynamic).webkitRelativePath as String? ?? file.name;
+            selectedFiles.add(
+              SelectedFile(
+                name: file.name,
+                relativePath: relativePath,
+                bytes: bytes,
+              ),
+            );
           }
         } catch (e) {
           // Ignore files that fail to read

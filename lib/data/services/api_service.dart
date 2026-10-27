@@ -5,6 +5,11 @@ import '../models/project.dart';
 import '../models/log_entry.dart';
 import '../models/build_job.dart';
 import '../models/project_file.dart';
+import '../models/github_repo.dart';
+import '../models/chat_response.dart';
+import '../../core/errors/app_error_handler.dart';
+
+export '../models/chat_response.dart';
 
 class ApiService {
   final Dio _dio = Dio(
@@ -165,13 +170,27 @@ class ApiService {
     }
   }
 
-  Future<void> saveGithubToken(String token) async {
+  Future<Map<String, dynamic>> saveGithubToken(String token) async {
     try {
-      await _dio.post('/api/auth/github-token', data: {'github_token': token});
+      final response = await _dio.post('/api/auth/github-token', data: {'github_token': token});
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+      return <String, dynamic>{'status': 'success', 'message': 'GitHub token saved successfully.'};
     } on DioException catch (e) {
       throw _parseError(e);
     }
   }
+
+  Future<Map<String, dynamic>> getGithubStatus() async {
+    try {
+      final response = await _dio.get('/api/auth/github-status');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _parseError(e);
+    }
+  }
+
 
   Future<BuildJob> buildProject(String projectId, String platform) async {
     try {
@@ -197,16 +216,27 @@ class ApiService {
     }
   }
 
-  Future<void> pushToGithub(
+  Future<GitHubRepo> pushToGithub(
     String projectId,
     String repoName,
     bool isPrivate,
   ) async {
     try {
-      await _dio.post(
+      final response = await _dio.post(
         '/api/projects/$projectId/github',
         data: {'repo_name': repoName, 'private': isPrivate},
       );
+      return GitHubRepo.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _parseError(e);
+    }
+  }
+
+  Future<GitHubRepo?> getGithubRepo(String projectId) async {
+    try {
+      final response = await _dio.get('/api/projects/$projectId/github');
+      if (response.data == null) return null;
+      return GitHubRepo.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw _parseError(e);
     }
@@ -367,27 +397,84 @@ class ApiService {
     }
   }
 
+  // --- AI Chat API ---
+
+  Future<ChatResponse> sendChatMessage(
+    String message, {
+    String? conversationId,
+    String? systemInstruction,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/chat',
+        data: {
+          'message': message,
+          'conversation_id': ?conversationId,
+          'system_instruction': ?systemInstruction,
+        },
+        cancelToken: cancelToken,
+      );
+      final data = response.data is Map<String, dynamic>
+          ? response.data as Map<String, dynamic>
+          : Map<String, dynamic>.from(response.data as Map);
+      return ChatResponse.fromJson(data);
+    } on DioException catch (e) {
+      throw _parseError(e);
+    }
+  }
+
+  // --- Persistent Conversations API ---
+
+  Future<List<Map<String, dynamic>>> listConversations({int limit = 30, int offset = 0}) async {
+    try {
+      final response = await _dio.get(
+        '/api/v1/conversations',
+        queryParameters: {'limit': limit, 'offset': offset},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final list = data['conversations'] as List? ?? [];
+      return list.map((item) => item as Map<String, dynamic>).toList();
+    } on DioException catch (e) {
+      throw _parseError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getConversation(String conversationId) async {
+    try {
+      final response = await _dio.get('/api/v1/conversations/$conversationId');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _parseError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> createConversation({String? title, String? projectId}) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/conversations',
+        data: {
+          'title': title ?? 'New Conversation',
+          'project_id': ?projectId,
+        },
+      );
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _parseError(e);
+    }
+  }
+
+  Future<void> deleteConversation(String conversationId) async {
+    try {
+      await _dio.delete('/api/v1/conversations/$conversationId');
+    } on DioException catch (e) {
+      throw _parseError(e);
+    }
+  }
+
   // --- Error Parsing Helper ---
 
   String _parseError(DioException error) {
-    if (error.response != null && error.response!.data != null) {
-      final data = error.response!.data;
-      if (data is Map && data.containsKey('detail')) {
-        return data['detail'].toString();
-      }
-    }
-    switch (error.type) {
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
-        return 'Server connection timed out. Please check if backend is running.';
-      case DioExceptionType.badResponse:
-        return 'Server error (Status ${error.response?.statusCode}).';
-      case DioExceptionType.connectionError:
-        final cleanUrl = ApiConfig.baseUrl.replaceAll('/api', '');
-        return 'Cannot reach the server. Make sure FastAPI backend is active on $cleanUrl.';
-      default:
-        return 'An unexpected network error occurred.';
-    }
+    return AppErrorHandler.parseError(error);
   }
 }

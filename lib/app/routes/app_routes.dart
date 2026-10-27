@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../features/auth/view/auth_screen.dart';
-import '../../features/projects/view/dashboard_screen.dart';
-import '../../features/ai_builder/view/project_details_screen.dart';
+import '../../core/components/app_shell.dart';
 
 class AppRoutes {
   static const String auth = '/auth';
@@ -11,8 +10,8 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes {
     return {
       auth: (context) => const AuthScreen(),
-      dashboard: (context) => const DashboardScreen(),
-      projectDetails: (context) => const ProjectDetailsScreen(),
+      dashboard: (context) => const AppShell(),
+      projectDetails: (context) => const AppShell(),
     };
   }
 }

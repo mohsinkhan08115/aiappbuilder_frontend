@@ -3,6 +3,7 @@ import '../models/project.dart';
 import '../models/log_entry.dart';
 import '../models/build_job.dart';
 import '../models/project_file.dart';
+import '../models/github_repo.dart';
 import '../services/api_service.dart';
 
 abstract class ProjectRepository {
@@ -18,7 +19,8 @@ abstract class ProjectRepository {
   Future<List<LogEntry>> getLogs(String projectId);
   Future<BuildJob> buildProject(String projectId, String platform);
   Future<List<BuildJob>> getBuilds(String projectId);
-  Future<void> pushToGithub(String projectId, String repoName, bool isPrivate);
+  Future<GitHubRepo> pushToGithub(String projectId, String repoName, bool isPrivate);
+  Future<GitHubRepo?> getGithubRepo(String projectId);
   Future<List<ProjectFile>> fetchProjectFiles(String projectId);
   Future<String> getFileContent(String projectId, String filePath);
   Future<void> saveFileContent(String projectId, String filePath, String content);
@@ -77,8 +79,12 @@ class ProjectRepositoryImpl implements ProjectRepository {
   Future<List<BuildJob>> getBuilds(String projectId) => _apiService.getBuilds(projectId);
 
   @override
-  Future<void> pushToGithub(String projectId, String repoName, bool isPrivate) =>
+  Future<GitHubRepo> pushToGithub(String projectId, String repoName, bool isPrivate) =>
       _apiService.pushToGithub(projectId, repoName, isPrivate);
+
+  @override
+  Future<GitHubRepo?> getGithubRepo(String projectId) =>
+      _apiService.getGithubRepo(projectId);
 
   @override
   Future<List<ProjectFile>> fetchProjectFiles(String projectId) =>

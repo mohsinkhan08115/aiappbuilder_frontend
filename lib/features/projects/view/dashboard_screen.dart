@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:archive/archive.dart';
 import 'dart:io' as io;
 import '../../auth/viewmodel/auth_viewmodel.dart';
 import '../viewmodel/project_viewmodel.dart';
@@ -40,86 +40,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _showGithubTokenDialog() {
     final tokenController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
 
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.vpn_key),
-              SizedBox(width: 8),
-              Text('GitHub Token Config'),
-            ],
-          ),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Row(
               children: [
-                const Text(
-                  'Enter your GitHub Personal Access Token (PAT). This is required to push generated applications to GitHub repositories.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: tokenController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'GitHub PAT Token',
-                    hintText: 'ghp_...',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a token';
-                    }
-                    if (!value.trim().startsWith('ghp_') &&
-                        !value.trim().startsWith('github_pat_')) {
-                      return 'Token should start with ghp_ or github_pat_';
-                    }
-                    return null;
-                  },
-                ),
+                Icon(Icons.vpn_key),
+                SizedBox(width: 8),
+                Text('GitHub Token Config'),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (!formKey.currentState!.validate()) return;
-
-                final token = tokenController.text.trim();
-                Navigator.pop(dialogContext);
-
-                if (!mounted) return;
-                final vm = Provider.of<ProjectViewModel>(
-                  context,
-                  listen: false,
-                );
-                await vm.updateGitHubToken(token);
-
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        vm.error != null
-                            ? 'Failed to save token: ${vm.error}'
-                            : 'GitHub Token saved successfully!',
-                      ),
-                      backgroundColor: vm.error != null
-                          ? Colors.red
-                          : Colors.green,
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Enter your GitHub Personal Access Token (PAT). This is required to push generated applications to GitHub repositories.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: tokenController,
+                    obscureText: true,
+                    enabled: !isSubmitting,
+                    decoration: const InputDecoration(
+                      labelText: 'GitHub PAT Token',
+                      hintText: 'ghp_...',
                     ),
-                  );
-                }
-              },
-              child: const Text('Save'),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a token';
+                      }
+                      if (!value.trim().startsWith('ghp_') &&
+                          !value.trim().startsWith('github_pat_')) {
+                        return 'Token should start with ghp_ or github_pat_';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
             ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+
+                        setDialogState(() {
+                          isSubmitting = true;
+                        });
+
+                        final token = tokenController.text.trim();
+                        final vm = Provider.of<ProjectViewModel>(
+                          context,
+                          listen: false,
+                        );
+                        final res = await vm.updateGitHubToken(token);
+
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+
+                        if (mounted) {
+                          final userLogin = res?['username'];
+                          final successMsg = userLogin != null
+                              ? 'GitHub token verified for "$userLogin" and saved!'
+                              : 'GitHub Token saved successfully!';
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                vm.error != null
+                                    ? 'Failed to save token: ${vm.error}'
+                                    : successMsg,
+                              ),
+                              backgroundColor: vm.error != null
+                                  ? Colors.red
+                                  : Colors.green,
+                            ),
+                          );
+                        }
+                      },
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save'),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -462,7 +483,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
   final _descController = TextEditingController();
 
   // Picking states
-  bool _isValidating = false;
   bool _isUploading = false;
   String? _selectedFileName;
   String? _validationError;
@@ -470,7 +490,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
 
   // Data loaded in memory
   List<SelectedFile> _pickedFolderFiles = [];
-  PlatformFile? _pickedZipFile;
 
   @override
   void dispose() {
@@ -479,26 +498,10 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
     super.dispose();
   }
 
-  String _sanitizeProjectName(String original) {
-    String sanitized = original
-        .toLowerCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_')
-        .replaceAll(RegExp(r'[^a-z0-9_]'), '');
-    if (sanitized.isNotEmpty && RegExp(r'^[0-9]').hasMatch(sanitized)) {
-      sanitized = 'project_$sanitized';
-    }
-    if (sanitized.isEmpty) {
-      sanitized = 'my_project';
-    }
-    return sanitized;
-  }
-
   // Action: Pick ZIP file
   Future<void> _pickZipFile() async {
     setState(() {
       _validationError = null;
-      _pickedZipFile = null;
       _selectedFileName = null;
     });
     try {
@@ -518,7 +521,7 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
           return;
         }
         List<int>? bytes = file.bytes;
-        if (bytes == null && file.path != null) {
+        if (!kIsWeb && bytes == null && file.path != null) {
           try {
             bytes = io.File(file.path!).readAsBytesSync();
           } catch (e) {
@@ -539,7 +542,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
           return;
         }
         _lastImportFlow = _CreateFlow.importZip;
-        _pickedZipFile = file;
         _selectedFileName = file.name;
 
         // Start import immediately without prompting for name/description!
@@ -561,7 +563,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
   // Action: Pick Directory (Folder)
   Future<void> _pickDirectoryFlow() async {
     setState(() {
-      _isValidating = true;
       _validationError = null;
       _pickedFolderFiles = [];
       _selectedFileName = null;
@@ -570,7 +571,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
       final files = await pickDirectory();
       if (files.isEmpty) {
         setState(() {
-          _isValidating = false;
           _currentFlow = _CreateFlow.main;
         });
         return;
@@ -603,7 +603,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
           _importProgressState = ImportProgressState.error;
           _validationError =
               'Invalid Flutter project structure. The selected folder must contain a "pubspec.yaml" and a "lib/" directory.';
-          _isValidating = false;
         });
         return;
       }
@@ -612,7 +611,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
         _pickedFolderFiles = files;
         final rootName = detectedRootFolder ?? 'imported_project';
         _selectedFileName = rootName;
-        _isValidating = false;
         _lastImportFlow = _CreateFlow.importFolder;
       });
 
@@ -623,7 +621,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
         _currentFlow = _CreateFlow.uploadProgress;
         _importProgressState = ImportProgressState.error;
         _validationError = 'Error reading directory: $e';
-        _isValidating = false;
       });
     }
   }
@@ -856,48 +853,6 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
         _validationError = e.toString();
       });
     }
-  }
-
-  // Archive picked files into a standard zip in memory
-  List<int> _createZipFromPickedFiles() {
-    final archive = Archive();
-
-    // Find the prefix to strip
-    String prefix = '';
-    for (final file in _pickedFolderFiles) {
-      final path = file.relativePath.replaceAll('\\', '/');
-      if (path.endsWith('pubspec.yaml')) {
-        final index = path.lastIndexOf('pubspec.yaml');
-        prefix = path.substring(0, index);
-        break;
-      }
-    }
-
-    for (final file in _pickedFolderFiles) {
-      String archivePath = file.relativePath.replaceAll('\\', '/');
-      if (prefix.isNotEmpty && archivePath.startsWith(prefix)) {
-        archivePath = archivePath.substring(prefix.length);
-      }
-      
-      while (archivePath.startsWith('/')) {
-        archivePath = archivePath.substring(1);
-      }
-
-      // Filter out build files, temporary files, etc.
-      final parts = archivePath.split('/');
-      if (parts.contains('build') ||
-          parts.contains('.dart_tool') ||
-          parts.contains('.git') ||
-          parts.contains('.vscode') ||
-          parts.contains('.idea') ||
-          parts.first.startsWith('.')) {
-        continue;
-      }
-
-      archive.addFile(ArchiveFile(archivePath, file.bytes.length, file.bytes));
-    }
-
-    return ZipEncoder().encode(archive) ?? [];
   }
 
   @override
